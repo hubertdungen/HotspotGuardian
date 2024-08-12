@@ -9,8 +9,6 @@ import threading
 import winreg
 import json
 import os
-import ctypes
-from tkinter import simpledialog, Tk
 
 CONFIG_FILE = 'hotspot_guardian_config.json'
 
@@ -37,8 +35,7 @@ def is_hotspot_on():
 
 def turn_on_hotspot():
     try:
-        # Using a simpler command to start the hotspot
-        subprocess.run(["powershell", "-Command", "Start-Process -FilePath 'powershell.exe' -ArgumentList 'Start-NetConnectionProfile' -Verb runAs"], check=True)
+        subprocess.run(["powershell", "-Command", "Add-Type -AssemblyName System.Runtime.WindowsRuntime; $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | ? { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]; $asTask = $asTaskGeneric.MakeGenericMethod([Windows.Networking.Connectivity.NetworkOperationResult]); $connectionProfile = [Windows.Networking.Connectivity.NetworkInformation,Windows.Networking.Connectivity,ContentType=WindowsRuntime]::GetInternetConnectionProfile(); $tetheringManager = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager,Windows.Networking.NetworkOperators,ContentType=WindowsRuntime]::CreateFromConnectionProfile($connectionProfile); $asyncOperation = $tetheringManager.StartTetheringAsync(); $asTask.Invoke($null, @($asyncOperation)) | Wait-Task;"], check=True)
         return True
     except subprocess.CalledProcessError:
         return False
@@ -58,14 +55,13 @@ def on_quit(icon, item):
 
 def set_check_interval(icon, item):
     global config
-    root = Tk()
-    root.withdraw()  # Hide the main window
-    new_interval = simpledialog.askinteger("Set Check Interval", "Enter new check interval in seconds:", 
-                                           minvalue=1, maxvalue=86400)  # 1 day max
-    if new_interval:
+    try:
+        new_interval = int(input("Enter new check interval in seconds: "))
         config['check_interval'] = new_interval
         save_config(config)
         print(f"Check interval updated to {new_interval} seconds")
+    except ValueError:
+        print("Invalid input. Please enter a number.")
 
 def create_image():
     image = Image.new('RGB', (64, 64), color='red')
